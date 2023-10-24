@@ -62,7 +62,7 @@
         jailbreakUnbreak = pkg:
           pkgs.haskell.lib.doJailbreak (pkg.overrideAttrs (_: { meta = { }; }));
 
-        packageName = "mimsa";
+        packageName = "llvm-calc";
       in
       {
         # we're not interested in building with Nix, just using it for deps
@@ -74,16 +74,12 @@
           buildInputs = with haskellPackages; [
             oldHaskellPackages.hlint
             oldHaskellPackages.ormolu
-            # haskell-language-server # this simply does nothing atm
             ghcid
             cabal-fmt
             cabal-install
             ghc
-            pkgs.zlib # used by `digest` package
-            pkgs.nodejs-18_x
             pkgs.clang_14
             pkgs.llvmPackages_14.llvm
-            pkgs.nodePackages.ts-node
           ];
 
           # put clang_14 on the path
