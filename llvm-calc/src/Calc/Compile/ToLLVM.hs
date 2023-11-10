@@ -27,7 +27,7 @@ toLLVM expr =
       ourExpression <- exprToLLVM expr
 
       -- print our result to stdout
-      _ <- LLVM.call printInt [(ourExpression, [])]
+      _ <- LLVM.call LLVM.i32 printInt [(ourExpression, [])]
 
       -- return success exit code of `0`
       LLVM.ret (LLVM.int32 0)

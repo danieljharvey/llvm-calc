@@ -105,6 +105,7 @@ executable llvm-calc
     , file-embed
     , haskeline
     , llvm-calc
+    , llvm-hs
     , llvm-hs-pretty
     , llvm-hs-pure
     , megaparsec

@@ -78,8 +78,8 @@
             cabal-fmt
             cabal-install
             ghc
-            pkgs.clang_14
-            pkgs.llvmPackages_14.llvm
+            pkgs.clang_15
+            pkgs.llvmPackages_15.llvm
           ];
 
           # put clang_14 on the path
