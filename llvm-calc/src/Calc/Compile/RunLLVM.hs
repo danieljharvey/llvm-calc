@@ -12,7 +12,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
 import qualified LLVM.AST as LLVM
-import LLVM.Pretty
 import System.CPUTime
 import System.Directory
 import System.IO

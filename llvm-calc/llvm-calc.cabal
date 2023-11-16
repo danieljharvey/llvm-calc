@@ -38,6 +38,7 @@ common shared
     , directory
     , file-embed
     , haskeline
+    , llvm-hs
     , llvm-hs-pure
     , megaparsec
     , mtl

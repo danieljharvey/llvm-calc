@@ -78,15 +78,18 @@
             cabal-fmt
             cabal-install
             ghc
-            pkgs.clang_15
-            pkgs.llvmPackages_15.llvm
+            pkgs.llvmPackages_15.bintools-unwrapped
+            pkgs.llvmPackages_15.clang
             pkgs.llvmPackages_15.libllvm
+            pkgs.llvmPackages_15.llvm.dev
+            pkgs.llvmPackages_15.libcxxClang
           ];
 
-          # put clang_14 on the path
-          #shellHook = with pkgs; ''
-          # export PATH="${clang_14}/bin:$PATH"
-          #'';
+          # put clang_15 on the path
+          shellHook = with pkgs; ''
+            # export DYLD_LIBRARY_PATH=${pkgs.llvmPackages_15.libllvm.lib}/lib/
+            export LIBCLANG_PATH="${pkgs.llvmPackages_15.libclang}/lib";
+          '';
 
           inputsFrom = builtins.attrValues self.packages.${system};
         };
