@@ -80,6 +80,7 @@
             ghc
             pkgs.clang_15
             pkgs.llvmPackages_15.llvm
+            pkgs.llvmPackages_15.libllvm
           ];
 
           # put clang_14 on the path
