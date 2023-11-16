@@ -32,12 +32,13 @@ common shared
 
   build-depends:
     , base
+    , bytestring
     , containers
     , diagnose
     , directory
     , file-embed
     , haskeline
-    , llvm-hs-pretty
+    , llvm-hs
     , llvm-hs-pure
     , megaparsec
     , mtl
@@ -105,7 +106,7 @@ executable llvm-calc
     , file-embed
     , haskeline
     , llvm-calc
-    , llvm-hs-pretty
+    , llvm-hs
     , llvm-hs-pure
     , megaparsec
     , parser-combinators
