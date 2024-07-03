@@ -51,10 +51,10 @@
 
         devShell = pkgs.mkShell {
           buildInputs = with haskellPackages; [
-            hlint
-            ormolu
+            # hlint
+            # ormolu
             # haskell-language-server # this simply does nothing atm
-            ghcid
+            # ghcid
             cabal-fmt
             cabal-install
             ghc
