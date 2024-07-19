@@ -5,18 +5,27 @@
 module Calc.Typecheck.Elaborate (elaborate, elaborateFunction, elaborateModule) where
 
 import Calc.ExprUtils
+import Calc.PatternUtils
+import Calc.Patterns.Flatten
 import Calc.TypeUtils
 import Calc.Typecheck.Error
 import Calc.Typecheck.Types
 import Calc.Types.Expr
 import Calc.Types.Function
+import Calc.Types.Identifier
 import Calc.Types.Module
+import Calc.Types.Pattern
 import Calc.Types.Prim
 import Calc.Types.Type
+import Calc.Utils
 import Control.Monad (when, zipWithM)
 import Control.Monad.Except
 import Data.Bifunctor (second)
+import Data.Foldable (foldrM)
 import Data.Functor
+import qualified Data.List.NonEmpty as NE
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 
 elaborateModule ::
   forall ann.
@@ -49,9 +58,45 @@ elaborate = runTypecheckM (TypecheckEnv mempty) . infer
 check :: Type ann -> Expr ann -> TypecheckM ann (Expr (Type ann))
 check ty expr = do
   exprA <- infer expr
-  if void (getOuterAnnotation exprA) == void ty
-    then pure (expr $> ty)
-    else throwError (TypeMismatch ty (getOuterAnnotation exprA))
+  _ <- checkTypeIsEqual ty (getOuterAnnotation exprA)
+  pure (expr $> ty)
+
+-- simple check for now
+checkTypeIsEqual :: Type ann -> Type ann -> TypecheckM ann (Type ann)
+checkTypeIsEqual tyA tyB =
+  if void tyA == void tyB
+    then pure tyA
+    else throwError (TypeMismatch tyA tyB)
+
+checkTypesAreEqual :: NE.NonEmpty (Type ann) -> TypecheckM ann (Type ann)
+checkTypesAreEqual tys =
+  foldrM checkTypeIsEqual (NE.head tys) (NE.tail tys)
+
+-- given the type of the expression in a pattern match,
+-- check that the pattern makes sense with it
+checkPattern ::
+  Type ann ->
+  Pattern ann ->
+  TypecheckM
+    ann
+    ( Pattern (Type ann),
+      Map Identifier (Type ann)
+    )
+checkPattern checkTy checkPat = do
+  case (checkTy, checkPat) of
+    (TTuple _ tA tRest, PTuple ann pA pRest) | length tRest == length pRest -> do
+      (patA, envA) <- checkPattern tA pA
+      (patRest, envRest) <- neUnzip <$> neZipWithM checkPattern tRest pRest
+      let ty = TTuple ann (getPatternAnnotation patA) (getPatternAnnotation <$> patRest)
+          env = envA <> mconcat (NE.toList envRest)
+      pure (PTuple ty patA patRest, env)
+    (ty, PVar _ ident) ->
+      pure (PVar ty ident, M.singleton ident ty)
+    (ty, PWildcard _) -> pure (PWildcard ty, mempty)
+    (ty@(TPrim _ tPrim), PLiteral _ pPrim)
+      | tPrim == typePrimFromPrim pPrim ->
+          pure (PLiteral ty pPrim, mempty)
+    (otherTy, otherPat) -> throwError (PatternMismatch otherPat otherTy)
 
 inferIf ::
   ann ->
@@ -128,6 +173,28 @@ infer (EPrim ann prim) =
   pure (EPrim (typeFromPrim ann prim) prim)
 infer (EIf ann predExpr thenExpr elseExpr) =
   inferIf ann predExpr thenExpr elseExpr
+infer (ETuple ann fstExpr restExpr) = do
+  typedFst <- infer fstExpr
+  typedRest <- traverse infer restExpr
+  let typ =
+        TTuple
+          ann
+          (getOuterAnnotation typedFst)
+          (getOuterAnnotation <$> typedRest)
+  pure $ ETuple typ typedFst typedRest
+infer (EPatternMatch ann matchExpr pats) = do
+  elabExpr <- infer matchExpr
+  let withPair (pat, patExpr) = do
+        (elabPat, newVars) <- checkPattern (getOuterAnnotation elabExpr) pat
+        elabPatExpr <- withVars (M.toList newVars) (infer patExpr)
+        pure (elabPat, elabPatExpr)
+  elabPats <- traverse withPair pats
+  let allTypes = getOuterAnnotation . snd <$> elabPats
+  typ <- checkTypesAreEqual allTypes
+  case generateMissing (fst <$> elabPats) of
+    [] -> pure ()
+    missingPatterns -> throwError (IncompletePatterns ann missingPatterns)
+  pure (EPatternMatch typ elabExpr elabPats)
 infer (EApply ann fnName args) = do
   fn <- lookupFunction ann fnName
   (ty, elabArgs) <- case fn of
@@ -145,6 +212,9 @@ infer (EVar ann var) = do
 infer (EInfix ann op a b) =
   inferInfix ann op a b
 
+typePrimFromPrim :: Prim -> TypePrim
+typePrimFromPrim (PInt _) = TInt
+typePrimFromPrim (PBool _) = TBool
+
 typeFromPrim :: ann -> Prim -> Type ann
-typeFromPrim ann (PInt _) = TPrim ann TInt
-typeFromPrim ann (PBool _) = TPrim ann TBool
+typeFromPrim ann prim = TPrim ann (typePrimFromPrim prim)

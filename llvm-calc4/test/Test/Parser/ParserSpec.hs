@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Test.Parser.ParserSpec (spec) where
@@ -5,26 +6,18 @@ module Test.Parser.ParserSpec (spec) where
 import Calc
 import Data.Foldable (traverse_)
 import Data.Functor
-import Data.String
 import qualified Data.Text as T
+import Test.Helpers
 import Test.Hspec
-
-int :: (Monoid ann) => Integer -> Expr ann
-int = EPrim mempty . PInt
-
-bool :: (Monoid ann) => Bool -> Expr ann
-bool = EPrim mempty . PBool
-
-var :: (Monoid ann) => String -> Expr ann
-var = EVar mempty . Identifier . fromString
 
 spec :: Spec
 spec = do
   describe "ParserSpec" $ do
     describe "Type" $ do
       let strings =
-            [ ("Boolean", TPrim () TBool),
-              ("Integer", TPrim () TInt)
+            [ ("Boolean", tyBool),
+              ("Integer", tyInt),
+              ("(Boolean, Boolean, Integer)", tyTuple [tyBool, tyBool, tyInt])
             ]
       traverse_
         ( \(str, expr) -> it (T.unpack str) $ do
@@ -83,6 +76,7 @@ spec = do
               ("1 + 2", EInfix () OpAdd (int 1) (int 2)),
               ("True", EPrim () (PBool True)),
               ("False", EPrim () (PBool False)),
+              ("(1,2,True)", tuple [int 1, int 2, bool True]),
               ( "1 + 2 + 3",
                 EInfix
                   ()
@@ -99,7 +93,21 @@ spec = do
               ("if True then 1 else 2", EIf () (bool True) (int 1) (int 2)),
               ("a + 1", EInfix () OpAdd (var "a") (int 1)),
               ("add(1,2)", EApply () "add" [int 1, int 2]),
-              ("go()", EApply () "go" [])
+              ("go()", EApply () "go" []),
+              ( "case (1,2,3) of (5,6,7) -> True | (1,2,3) -> False",
+                patternMatch
+                  (tuple [int 1, int 2, int 3])
+                  [ (patTuple [patInt 5, patInt 6, patInt 7], bool True),
+                    (patTuple [patInt 1, patInt 2, patInt 3], bool False)
+                  ]
+              ),
+              ( "case a of 100 -> True | _ -> False",
+                patternMatch
+                  (var "a")
+                  [ (patInt 100, bool True),
+                    (PWildcard (), bool False)
+                  ]
+              )
             ]
       traverse_
         ( \(str, expr) -> it (T.unpack str) $ do

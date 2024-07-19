@@ -4,12 +4,14 @@
 
 module Calc.Typecheck.Error (TypeError (..), typeErrorDiagnostic) where
 
+import Calc.PatternUtils
 import Calc.SourceSpan
 import Calc.TypeUtils
 import Calc.Types.Annotation
 import Calc.Types.Expr
 import Calc.Types.FunctionName
 import Calc.Types.Identifier
+import Calc.Types.Pattern
 import Calc.Types.Type
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HS
@@ -26,8 +28,10 @@ data TypeError ann
   | TypeMismatch (Type ann) (Type ann)
   | VarNotFound ann Identifier (HashSet Identifier)
   | FunctionNotFound ann FunctionName (HashSet FunctionName)
+  | PatternMismatch (Pattern ann) (Type ann)
   | FunctionArgumentLengthMismatch ann Int Int -- expected, actual
   | NonFunctionTypeFound ann (Type ann)
+  | IncompletePatterns ann [Pattern ()]
   deriving stock (Eq, Ord, Show)
 
 positionFromAnnotation ::
@@ -180,6 +184,17 @@ typeErrorDiagnostic input e =
                 ]
             )
             [Diag.Note $ "Available in scope: " <> prettyPrint (prettyHashset existing)]
+        (PatternMismatch pat ty) ->
+          Diag.Err
+            Nothing
+            "Pattern mismatch!"
+            ( catMaybes
+                [ (,)
+                    <$> positionFromAnnotation filename input (getPatternAnnotation pat)
+                    <*> pure (Diag.This (prettyPrint $ "This should have type " <> PP.pretty ty))
+                ]
+            )
+            []
         (FunctionNotFound ann fnName existing) ->
           Diag.Err
             Nothing
@@ -196,6 +211,24 @@ typeErrorDiagnostic input e =
                 ]
             )
             [Diag.Note $ "Available in scope: " <> prettyPrint (prettyHashset existing)]
+        (IncompletePatterns ann missingPatterns) ->
+          Diag.Err
+            Nothing
+            "Pattern match is incomplete!"
+            ( catMaybes
+                [ (,)
+                    <$> positionFromAnnotation
+                      filename
+                      input
+                      ann
+                    <*> pure
+                      ( Diag.This $
+                          prettyPrint $
+                            "Missing patterns: " <> PP.line <> prettyListToLines missingPatterns
+                      )
+                ]
+            )
+            []
    in Diag.addReport diag report
 
 -- | becomes "a, b, c, d"
@@ -204,6 +237,12 @@ prettyHashset hs =
   PP.concatWith
     (PP.surround PP.comma)
     (PP.pretty <$> HS.toList hs)
+
+prettyListToLines :: (PP.Pretty a) => [a] -> PP.Doc ann
+prettyListToLines as =
+  PP.concatWith
+    (PP.surround PP.line)
+    (PP.pretty <$> as)
 
 renderWithWidth :: Int -> PP.Doc ann -> Text
 renderWithWidth w doc = PP.renderStrict (PP.layoutPretty layoutOptions (PP.unAnnotate doc))
